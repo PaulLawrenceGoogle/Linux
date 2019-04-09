@@ -372,6 +372,12 @@ void jbd2_journal_commit_transaction(journal_t *journal)
 	LIST_HEAD(io_bufs);
 	LIST_HEAD(log_bufs);
 
+	if (journal->j_flags & JBD2_NO_COMMIT) {
+		jbd2_journal_destroy_checkpoint(journal);
+		journal->j_running_transaction = NULL;
+		return;
+	}
+
 	if (jbd2_journal_has_csum_v2or3(journal))
 		csum_size = sizeof(struct jbd2_journal_block_tail);
 

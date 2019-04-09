@@ -1233,6 +1233,7 @@ JBD2_FEATURE_INCOMPAT_FUNCS(csum3,		CSUM_V3)
 						 * data write error in ordered
 						 * mode */
 #define JBD2_REC_ERR	0x080	/* The errno in the sb has been recorded */
+#define JBD2_NO_COMMIT  0x100   /* Do not commit any transactions */
 
 /*
  * Function declarations for the journaling transaction and buffer
@@ -1303,6 +1304,8 @@ extern void jbd2_buffer_frozen_trigger(struct journal_head *jh,
 				       struct jbd2_buffer_trigger_type *triggers);
 extern void jbd2_buffer_abort_trigger(struct journal_head *jh,
 				      struct jbd2_buffer_trigger_type *triggers);
+
+extern int jbd2_journal_start_thread(journal_t *journal);
 
 /* Buffer IO */
 extern int jbd2_journal_write_metadata_buffer(transaction_t *transaction,

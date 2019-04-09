@@ -1455,6 +1455,7 @@ enum {
 	Opt_dioread_nolock, Opt_dioread_lock,
 	Opt_discard, Opt_nodiscard, Opt_init_itable, Opt_noinit_itable,
 	Opt_max_dir_size_kb, Opt_nojournal_checksum, Opt_nombcache,
+	Opt_checkpoint_disabled, Opt_checkpoint_enabled,
 };
 
 static const match_table_t tokens = {
@@ -1540,6 +1541,8 @@ static const match_table_t tokens = {
 	{Opt_max_dir_size_kb, "max_dir_size_kb=%u"},
 	{Opt_test_dummy_encryption, "test_dummy_encryption"},
 	{Opt_nombcache, "nombcache"},
+	{Opt_checkpoint_disabled, "checkpoint=disabled"},
+	{Opt_checkpoint_enabled, "checkpoint=enabled"},
 	{Opt_nombcache, "no_mbcache"},	/* for backward compatibility */
 	{Opt_removed, "check=none"},	/* mount option from ext2/3 */
 	{Opt_removed, "nocheck"},	/* mount option from ext2/3 */
@@ -1751,6 +1754,10 @@ static const struct mount_opts {
 	{Opt_max_dir_size_kb, 0, MOPT_GTE0},
 	{Opt_test_dummy_encryption, 0, MOPT_GTE0},
 	{Opt_nombcache, EXT4_MOUNT_NO_MBCACHE, MOPT_SET},
+	{Opt_checkpoint_disabled, EXT4_MOUNT_CHECKPOINT_DISABLED,
+		MOPT_SET | MOPT_CLEAR_ERR},
+	{Opt_checkpoint_enabled, EXT4_MOUNT_CHECKPOINT_DISABLED,
+		MOPT_SET | MOPT_CLEAR_ERR},
 	{Opt_err, 0, 0}
 };
 
@@ -2016,6 +2023,10 @@ static int handle_mount_opt(struct super_block *sb, char *opt, int token,
 		sbi->s_mount_opt |= m->mount_opt;
 	} else if (token == Opt_data_err_ignore) {
 		sbi->s_mount_opt &= ~m->mount_opt;
+	} else if (token == Opt_checkpoint_disabled) {
+		set_opt(sb, CHECKPOINT_DISABLED);
+	} else if (token == Opt_checkpoint_enabled) {
+		clear_opt(sb, CHECKPOINT_DISABLED);
 	} else {
 		if (!args->from)
 			arg = 1;
@@ -4389,7 +4400,8 @@ static int ext4_fill_super(struct super_block *sb, void *data, int silent)
 		goto failed_mount_wq;
 	}
 
-	set_task_ioprio(sbi->s_journal->j_task, journal_ioprio);
+	if (sbi->s_journal->j_task)
+		set_task_ioprio(sbi->s_journal->j_task, journal_ioprio);
 
 	sbi->s_journal->j_commit_callback = ext4_journal_commit_callback;
 
@@ -4697,6 +4709,11 @@ static void ext4_init_journal_params(struct super_block *sb, journal_t *journal)
 		journal->j_flags |= JBD2_ABORT_ON_SYNCDATA_ERR;
 	else
 		journal->j_flags &= ~JBD2_ABORT_ON_SYNCDATA_ERR;
+
+	if (test_opt(sb, CHECKPOINT_DISABLED))
+		journal->j_flags |= JBD2_NO_COMMIT;
+	else
+		journal->j_flags &= ~JBD2_NO_COMMIT;
 	write_unlock(&journal->j_state_lock);
 }
 
@@ -5267,7 +5284,9 @@ static int ext4_remount(struct super_block *sb, int *flags, char *data)
 		} else
 			old_opts.s_qf_names[i] = NULL;
 #endif
-	if (sbi->s_journal && sbi->s_journal->j_task->io_context)
+	if (   sbi->s_journal
+	    && sbi->s_journal->j_task
+	    && sbi->s_journal->j_task->io_context)
 		journal_ioprio = sbi->s_journal->j_task->io_context->ioprio;
 
 	if (!parse_options(data, sb, NULL, &journal_ioprio, 1)) {
@@ -5334,6 +5353,11 @@ static int ext4_remount(struct super_block *sb, int *flags, char *data)
 
 	if (sbi->s_journal) {
 		ext4_init_journal_params(sb, sbi->s_journal);
+
+		if (!sbi->s_journal->j_task
+		    && !(sbi->s_journal->j_flags & JBD2_NO_COMMIT))
+			jbd2_journal_start_thread(sbi->s_journal);
+
 		set_task_ioprio(sbi->s_journal->j_task, journal_ioprio);
 	}
 

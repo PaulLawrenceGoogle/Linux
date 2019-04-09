@@ -273,7 +273,7 @@ end_loop:
 	return 0;
 }
 
-static int jbd2_journal_start_thread(journal_t *journal)
+int jbd2_journal_start_thread(journal_t *journal)
 {
 	struct task_struct *t;
 
@@ -679,6 +679,9 @@ EXPORT_SYMBOL(jbd2_trans_will_send_data_barrier);
 int jbd2_log_wait_commit(journal_t *journal, tid_t tid)
 {
 	int err = 0;
+
+	if (journal->j_flags & JBD2_NO_COMMIT)
+		return err;
 
 	read_lock(&journal->j_state_lock);
 #ifdef CONFIG_PROVE_LOCKING
@@ -1337,7 +1340,11 @@ static int journal_reset(journal_t *journal)
 						REQ_SYNC | REQ_FUA);
 		mutex_unlock(&journal->j_checkpoint_mutex);
 	}
-	return jbd2_journal_start_thread(journal);
+
+	if (journal->j_flags & JBD2_NO_COMMIT)
+		return 0;
+	else
+		return jbd2_journal_start_thread(journal);
 }
 
 /*

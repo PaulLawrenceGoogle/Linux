@@ -95,7 +95,8 @@ static void jbd2_get_transaction(journal_t *journal,
 
 	/* Set up the commit timer for the new transaction. */
 	journal->j_commit_timer.expires = round_jiffies_up(transaction->t_expires);
-	add_timer(&journal->j_commit_timer);
+	if (journal->j_commit_timer.function)
+		add_timer(&journal->j_commit_timer);
 
 	J_ASSERT(journal->j_running_transaction == NULL);
 	journal->j_running_transaction = transaction;
