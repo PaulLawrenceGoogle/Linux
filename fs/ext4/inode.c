@@ -2470,7 +2470,8 @@ static int mpage_map_one_extent(handle_t *handle, struct mpage_da_data *mpd)
 	 */
 	get_blocks_flags = EXT4_GET_BLOCKS_CREATE |
 			   EXT4_GET_BLOCKS_METADATA_NOFAIL |
-			   EXT4_GET_BLOCKS_IO_SUBMIT;
+			   EXT4_GET_BLOCKS_IO_SUBMIT |
+			   EXT4_GET_BLOCKS_COW;
 	dioread_nolock = ext4_should_dioread_nolock(inode);
 	if (dioread_nolock)
 		get_blocks_flags |= EXT4_GET_BLOCKS_IO_CREATE_EXT;
@@ -3090,7 +3091,6 @@ retry_journal:
 		put_page(page);
 		return PTR_ERR(handle);
 	}
-
 	lock_page(page);
 	if (page->mapping != mapping) {
 		/* The page got truncated from under us */
